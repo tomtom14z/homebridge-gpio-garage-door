@@ -28,9 +28,9 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
   private targetDoorState = this.api.hap.Characteristic.TargetDoorState.CLOSED;
   private obstructionDetected = false;
 
-  private garageDoorMovingTimeout?: any;
-  private autoCloseTimeout?: any;
-  private openingDelayTimeout?: any;
+  private garageDoorMovingTimeout?: ReturnType<typeof setTimeout>;
+  private autoCloseTimeout?: ReturnType<typeof setTimeout>;
+  private openingDelayTimeout?: ReturnType<typeof setTimeout>;
 
   private pinHigh = true;
 
@@ -220,7 +220,7 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
         this.currentDoorState === this.api.hap.Characteristic.CurrentDoorState.OPEN &&
         targetState === this.api.hap.Characteristic.TargetDoorState.OPEN
       ) {
-        this.log.info('Réinitialisation de la minuterie d’auto-fermeture');
+        this.log.info('Réinitialisation de la minuterie d\'auto-fermeture');
         this.startAutoCloseTimer();
       }
       return;
@@ -236,7 +236,7 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
         this.currentDoorState = this.api.hap.Characteristic.CurrentDoorState.OPENING;
         this.garageDoorService.updateCharacteristic(this.api.hap.Characteristic.CurrentDoorState, this.currentDoorState);
         targetGpioPin = this.config.gpioPinOpen;
-        // On réinitialise la minuterie d’auto-fermeture
+        // On réinitialise la minuterie d'auto-fermeture
         this.cancelAutoCloseTimer();
         this.openingDelayTimeout = setTimeout(() => {
           this.currentDoorState = this.api.hap.Characteristic.CurrentDoorState.OPEN;
@@ -252,7 +252,7 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
         this.currentDoorState = this.api.hap.Characteristic.CurrentDoorState.CLOSING;
         this.garageDoorService.updateCharacteristic(this.api.hap.Characteristic.CurrentDoorState, this.currentDoorState);
         targetGpioPin = this.config.gpioPinOpen; // On utilise le même pin pour fermer
-        // NE PAS annuler la minuterie d’auto-fermeture ici
+        // NE PAS annuler la minuterie d'auto-fermeture ici
         break;
     }
 
@@ -290,10 +290,10 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
 
   private startAutoCloseTimer(): void {
     this.cancelAutoCloseTimer();
-    
+
     const delay = (this.config.autoCloseDelay || 15) * 1000;
     this.log.debug(`Starting auto-close timer for ${delay}ms`);
-    
+
     this.autoCloseTimeout = setTimeout(() => {
       this.log.info('Auto-close timer expired, closing garage door');
       this.setTargetDoorState(this.api.hap.Characteristic.TargetDoorState.CLOSED);
@@ -323,7 +323,7 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
       clearTimeout(this.garageDoorMovingTimeout);
       this.garageDoorMovingTimeout = undefined;
     }
-    
+
     if (this.openingDelayTimeout) {
       clearTimeout(this.openingDelayTimeout);
       this.openingDelayTimeout = undefined;
