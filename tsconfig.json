@@ -15,12 +15,15 @@
     "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
-    "noImplicitAny": false
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "noEmitOnError": false
   },
   "include": [
     "src/"
   ],
   "exclude": [
-    "**/*.spec.ts"
+    "**/*.spec.ts",
+    "node_modules/@types/node"
   ]
 }

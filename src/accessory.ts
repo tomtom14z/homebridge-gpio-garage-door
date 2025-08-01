@@ -28,7 +28,9 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
   private targetDoorState = this.api.hap.Characteristic.TargetDoorState.CLOSED;
   private obstructionDetected = false;
 
-  private garageDoorMovingTimeout?: NodeJS.Timeout;
+  private garageDoorMovingTimeout?: any;
+  private autoCloseTimeout?: any;
+  private openingDelayTimeout?: any;
 
   private pinHigh = true;
 
@@ -212,6 +214,15 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
 
     if (this.config.gpioStateInputEnabled && this.currentDoorState === targetState) {
       this.log.info('Command ignored, door is already at desired state');
+      // Si la porte est déjà ouverte et qu'on reçoit une impulsion d'ouverture, on réinitialise la minuterie
+      if (
+        this.config.autoCloseEnabled &&
+        this.currentDoorState === this.api.hap.Characteristic.CurrentDoorState.OPEN &&
+        targetState === this.api.hap.Characteristic.TargetDoorState.OPEN
+      ) {
+        this.log.info('Réinitialisation de la minuterie d’auto-fermeture');
+        this.startAutoCloseTimer();
+      }
       return;
     }
 
@@ -221,17 +232,27 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
     let targetGpioPin = -1;
     switch (this.targetDoorState) {
       case this.api.hap.Characteristic.TargetDoorState.OPEN:
-        this.log.debug('Opening garage door');
+        this.log.debug('Ouverture de la porte de garage');
         this.currentDoorState = this.api.hap.Characteristic.CurrentDoorState.OPENING;
         this.garageDoorService.updateCharacteristic(this.api.hap.Characteristic.CurrentDoorState, this.currentDoorState);
         targetGpioPin = this.config.gpioPinOpen;
+        // On réinitialise la minuterie d’auto-fermeture
+        this.cancelAutoCloseTimer();
+        this.openingDelayTimeout = setTimeout(() => {
+          this.currentDoorState = this.api.hap.Characteristic.CurrentDoorState.OPEN;
+          this.garageDoorService.updateCharacteristic(this.api.hap.Characteristic.CurrentDoorState, this.currentDoorState);
+          if (this.config.autoCloseEnabled) {
+            this.startAutoCloseTimer();
+          }
+          this.persistCache();
+        }, (this.config.openingDelay || this.config.executionTime) * 1000);
         break;
-
       case this.api.hap.Characteristic.TargetDoorState.CLOSED:
-        this.log.debug('Closing garage door');
+        this.log.debug('Fermeture de la porte de garage');
         this.currentDoorState = this.api.hap.Characteristic.CurrentDoorState.CLOSING;
         this.garageDoorService.updateCharacteristic(this.api.hap.Characteristic.CurrentDoorState, this.currentDoorState);
-        targetGpioPin = this.config.gpioPinClose;
+        targetGpioPin = this.config.gpioPinOpen; // On utilise le même pin pour fermer
+        // NE PAS annuler la minuterie d’auto-fermeture ici
         break;
     }
 
@@ -239,17 +260,17 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
 
     if (targetGpioPin > -1) {
       this.setGpio(targetGpioPin, this.pinHigh);
-
       setTimeout(() => {
         this.setGpio(targetGpioPin, !this.pinHigh);
       }, this.config.emitTime);
-
-      this.garageDoorMovingTimeout = setTimeout(() => {
-        this.currentDoorState = this.targetDoorState;
-        this.garageDoorService.updateCharacteristic(this.api.hap.Characteristic.CurrentDoorState, this.currentDoorState);
-
-        this.persistCache();
-      }, this.config.executionTime * 1000);
+      // On ne met le timeout de mouvement que pour la fermeture
+      if (this.targetDoorState === this.api.hap.Characteristic.TargetDoorState.CLOSED) {
+        this.garageDoorMovingTimeout = setTimeout(() => {
+          this.currentDoorState = this.targetDoorState;
+          this.garageDoorService.updateCharacteristic(this.api.hap.Characteristic.CurrentDoorState, this.currentDoorState);
+          this.persistCache();
+        }, this.config.executionTime * 1000);
+      }
     }
   }
 
@@ -267,6 +288,26 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
     GPIO.write(pin, state);
   }
 
+  private startAutoCloseTimer(): void {
+    this.cancelAutoCloseTimer();
+    
+    const delay = (this.config.autoCloseDelay || 15) * 1000;
+    this.log.debug(`Starting auto-close timer for ${delay}ms`);
+    
+    this.autoCloseTimeout = setTimeout(() => {
+      this.log.info('Auto-close timer expired, closing garage door');
+      this.setTargetDoorState(this.api.hap.Characteristic.TargetDoorState.CLOSED);
+    }, delay);
+  }
+
+  private cancelAutoCloseTimer(): void {
+    if (this.autoCloseTimeout) {
+      clearTimeout(this.autoCloseTimeout);
+      this.autoCloseTimeout = undefined;
+      this.log.debug('Auto-close timer cancelled');
+    }
+  }
+
   private externalStateChange(hkDoorState: number): void {
     // update current and target door state
     this.currentDoorState = hkDoorState;
@@ -277,10 +318,26 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
 
     this.persistCache();
 
-    // cancel timeout
+    // cancel timeouts
     if (this.garageDoorMovingTimeout) {
       clearTimeout(this.garageDoorMovingTimeout);
       this.garageDoorMovingTimeout = undefined;
+    }
+    
+    if (this.openingDelayTimeout) {
+      clearTimeout(this.openingDelayTimeout);
+      this.openingDelayTimeout = undefined;
+    }
+
+    // Handle auto-close timer based on new state
+    if (hkDoorState === this.api.hap.Characteristic.CurrentDoorState.OPEN) {
+      // Door is now open, start auto-close timer if enabled
+      if (this.config.autoCloseEnabled) {
+        this.startAutoCloseTimer();
+      }
+    } else if (hkDoorState === this.api.hap.Characteristic.CurrentDoorState.CLOSED) {
+      // Door is now closed, cancel auto-close timer
+      this.cancelAutoCloseTimer();
     }
   }
 

@@ -39,6 +39,31 @@
         "type": "number",
         "default": 10
       },
+      "autoCloseEnabled": {
+        "title": "Enable automatic closing",
+        "description": "If enabled, the garage door will automatically close after a specified delay when opened.",
+        "type": "boolean",
+        "default": false
+      },
+      "autoCloseDelay": {
+        "title": "Auto-close delay (seconds)",
+        "description": "How many seconds to wait before automatically closing the garage door after it opens.",
+        "type": "number",
+        "default": 15,
+        "minimum": 1,
+        "maximum": 300,
+        "condition": {
+          "functionBody": "return model.autoCloseEnabled === true;"
+        }
+      },
+      "openingDelay": {
+        "title": "Opening delay (seconds)",
+        "description": "How many seconds to wait before considering the door fully opened after sending the open command.",
+        "type": "number",
+        "default": 10,
+        "minimum": 1,
+        "maximum": 60
+      },
       "allowCommandOverride": {
         "title": "Allow command override",
         "description": "Define if sending a new command while the garage door is still executing the previous command should be allowed.",
