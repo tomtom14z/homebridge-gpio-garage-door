@@ -10,36 +10,126 @@
 [![license](https://badgen.net/github/license/silviokennecke/homebridge-gpio-garage-door)](https://github.com/silviokennecke/homebridge-gpio-garage-door/blob/main/LICENSE)
 [![lint & build](https://github.com/silviokennecke/homebridge-gpio-garage-door/actions/workflows/build.yml/badge.svg)](https://github.com/silviokennecke/homebridge-gpio-garage-door/actions/workflows/build.yml)
 
-# Homebridge GPIO garage door
+# Homebridge GPIO Garage Door with Auto-Close
 
-This plugin uses the GPIO output of the Raspberry PI to provide a HomeKit garage door.
+Un plugin Homebridge pour contrôler une porte de garage via GPIO avec fonctionnalité de fermeture automatique.
 
-> :warning: This plugin is only designed for and tested on Raspberry PI.
-> There's no guarantee, the plugin works also on other boards equipped with GPIO!
+## Fonctionnalités
+
+- **Contrôle GPIO** : Utilise un seul pin GPIO pour ouvrir/fermer la porte
+- **Fermeture automatique** : Fermeture automatique après un délai configurable
+- **Réinitialisation de minuterie** : Chaque impulsion d'ouverture réinitialise la minuterie si la porte est déjà ouverte
+- **Support HomeKit** : Intégration complète avec l'écosystème Apple Home
+- **Webhook** : Support optionnel pour les webhooks
+- **Entrée GPIO** : Lecture optionnelle de l'état de la porte via GPIO
+
+## Installation
+
+```bash
+npm install -g @tomtom14z/homebridge-gpio-garage-door
+```
 
 ## Configuration
 
-| key                     | type    | description                                                                                                                                    |
-|-------------------------|---------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| name                    | string  | The name of the accessory.                                                                                                                     | 
-| gpioPinOpen             | integer | The GPIO pin the plugin should use to open the garage door.                                                                                    | 
-| gpioPinClose            | integer | The GPIO pin the plugin should use to close the garage door. If empty, gpioPinOpen is used to open and close the garage door.                  | 
-| emitTime                | integer | How many milliseconds should the GPIO output be HIGH?                                                                                          | 
-| executionTime           | integer | How many seconds does the garage door to execute an open or close command?                                                                     |
-| allowCommandOverride    | boolean | If true, the plugin will allow to send a new command (e.g. open) to the garage door while it's already executing another command (e.g. close). |
-| reverseOutput           | boolean | If enabled, a open signal will be sent as HIGH-LOW-HIGH, instead of the default behaviour LOW-HIGH-LOW.                                        |
-| gpioStateInputEnabled   | boolean | If enabled, the plugin will read the current state of the garage door from the GPIO input.                                                     |
-| gpioPinState            | integer | The GPIO pin the plugin should use to read the current state of the garage door.                                                               |
-| gpioStateInputReverse   | boolean | If enabled, a GPIO HIGH state will indicate a CLOSED garage door.                                                                              |
-| webhookEnabled          | boolean | If enabled, the plugin will listen on the configured port for a webhook to changes of the garage door state, emitted by an external sensor.    |
-| webhookPort             | integer | The port the plugin should listen on for a webhook.                                                                                            |
-| webhookPath             | string  | The path the plugin should listen on for a webhook.                                                                                            |
-| webhookJsonPath         | string  | The JSON path to the value of the garage door state. A truthy value indicates an open garage door.                                             |
-| webhookJsonValueReverse | boolean | If enabled, the plugin will reverse the value of the JSON path. E.g. a truthy value will become falsy.                                         |
+Ajoutez la configuration suivante à votre `config.json` de Homebridge :
 
-## Support & Contribution
+```json
+{
+  "accessories": [
+    {
+      "accessory": "GpioGarageDoor",
+      "name": "Porte de Garage",
+      "gpioPinOpen": 7,
+      "emitTime": 500,
+      "executionTime": 10,
+      "autoCloseEnabled": true,
+      "autoCloseDelay": 15,
+      "openingDelay": 10,
+      "allowCommandOverride": false,
+      "reverseOutput": false
+    }
+  ]
+}
+```
 
-This project is not commercially developed or maintained.
-Therefore, it might take some time after opening an issue until it is solved.
-But anyway: If you experience any bugs feel free to open an issue or create a pull request.
-Contribution is always welcome.
+## Paramètres de configuration
+
+| Paramètre | Type | Requis | Défaut | Description |
+|-----------|------|--------|--------|-------------|
+| `name` | string | ✅ | - | Nom de l'accessoire dans HomeKit |
+| `gpioPinOpen` | number | ✅ | - | Pin GPIO pour l'impulsion d'ouverture/fermeture |
+| `emitTime` | number | ✅ | 500 | Durée de l'impulsion en millisecondes |
+| `executionTime` | number | ❌ | 10 | Temps d'exécution de la porte en secondes |
+| `autoCloseEnabled` | boolean | ❌ | false | Active la fermeture automatique |
+| `autoCloseDelay` | number | ❌ | 15 | Délai avant fermeture automatique (secondes) |
+| `openingDelay` | number | ❌ | 10 | Délai d'ouverture de la porte (secondes) |
+| `allowCommandOverride` | boolean | ❌ | false | Permet d'ignorer les commandes pendant le mouvement |
+| `reverseOutput` | boolean | ❌ | false | Inverse la logique de sortie GPIO |
+
+### Paramètres optionnels avancés
+
+| Paramètre | Type | Défaut | Description |
+|-----------|------|--------|-------------|
+| `gpioStateInputEnabled` | boolean | false | Active la lecture de l'état via GPIO |
+| `gpioPinState` | number | - | Pin GPIO pour lire l'état de la porte |
+| `gpioStateInputReverse` | boolean | false | Inverse la logique de lecture d'état |
+| `webhookEnabled` | boolean | false | Active le support webhook |
+| `webhookPort` | number | 8352 | Port du webhook |
+| `webhookPath` | string | "/garage-door" | Chemin du webhook |
+| `webhookJsonPath` | string | "$.value" | Chemin JSON pour l'état |
+| `webhookJsonValueReverse` | boolean | false | Inverse la valeur JSON |
+
+## Fonctionnement
+
+### Fermeture automatique
+
+1. **Ouverture** : Une impulsion sur le pin GPIO ouvre la porte
+2. **Minuterie** : Si activée, une minuterie se déclenche après l'ouverture
+3. **Réinitialisation** : Chaque nouvelle impulsion d'ouverture réinitialise la minuterie
+4. **Fermeture** : Après le délai configuré, la porte se ferme automatiquement
+
+### Logique de contrôle
+
+- **Porte fermée + impulsion** → Ouverture + démarrage minuterie
+- **Porte ouverte + impulsion** → Réinitialisation minuterie
+- **Minuterie expirée** → Fermeture automatique
+
+## Utilisation avec HomeKit
+
+Une fois configuré, l'accessoire apparaîtra dans l'app Maison d'Apple avec les fonctionnalités suivantes :
+
+- **Ouverture/fermeture** : Contrôle manuel de la porte
+- **État** : Affichage de l'état actuel (ouvert/fermé/ouverture/fermeture)
+- **Automatisation** : Possibilité de créer des automatisations basées sur l'état
+
+## Développement
+
+### Installation des dépendances
+
+```bash
+npm install
+```
+
+### Compilation
+
+```bash
+npm run build
+```
+
+### Développement en mode watch
+
+```bash
+npm run watch
+```
+
+## Licence
+
+Apache-2.0
+
+## Auteur
+
+tomtom14z - [GitHub](https://github.com/tomtom14z)
+
+## Support
+
+Pour signaler des bugs ou demander des fonctionnalités, utilisez les [issues GitHub](https://github.com/tomtom14z/homebridge-gpio-garage-door/issues).
