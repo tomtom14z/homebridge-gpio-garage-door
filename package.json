@@ -2,9 +2,13 @@
   "name": "@tomtom14z/homebridge-gpio-garage-door",
   "displayName": "Homebridge GPIO Garage Door with Auto-Close",
   "version": "2.1.0",
-  "description": "Homebridge plugin for GPIO garage door control with automatic closing timer",
+  "description": "Homebridge plugin for GPIO garage door control with automatic closing timer and virtual opening delay feature",
   "license": "Apache-2.0",
-  "author": "tomtom14z",
+  "author": {
+    "name": "tomtom14z",
+    "email": "thomasvernouillet@icloud.com",
+    "url": "https://github.com/tomtom14z"
+  },
   "repository": {
     "type": "git",
     "url": "git://github.com/tomtom14z/homebridge-gpio-garage-door.git"
@@ -13,6 +17,7 @@
     "url": "https://github.com/tomtom14z/homebridge-gpio-garage-door/issues"
   },
   "homepage": "https://github.com/tomtom14z/homebridge-gpio-garage-door#readme",
+  "readme": "README-npm.md",
   "engines": {
     "node": ">=14.18.1",
     "homebridge": ">=1.3.5"
@@ -33,7 +38,10 @@
     "raspberry pi",
     "auto-close",
     "timer",
-    "homekit"
+    "homekit",
+    "virtual-opening",
+    "smart-home",
+    "automation"
   ],
   "dependencies": {
     "axios": "^0.26.1",
