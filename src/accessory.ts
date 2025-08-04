@@ -369,7 +369,7 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
 
     // Ne redémarrer le timer de fermeture automatique que si on annule manuellement la temporisation virtuelle
     // et que la porte est toujours ouverte
-    if (this.config.autoCloseEnabled && 
+    if (this.config.autoCloseEnabled &&
         this.currentDoorState === this.api.hap.Characteristic.CurrentDoorState.OPEN &&
         !this.virtualOpeningTimer) { // Seulement si on n'a pas de timer virtuel actif
       const physicalDelay = (this.config.autoCloseDelay || 15) * 1000;
