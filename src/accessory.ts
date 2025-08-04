@@ -345,7 +345,22 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
       this.virtualOpeningTimer = setTimeout(() => {
         this.log.info('Virtual opening timer expired, closing garage door');
         this.cancelVirtualOpeningInterval();
-        this.setTargetDoorState(this.api.hap.Characteristic.TargetDoorState.CLOSED);
+        
+        // Fermeture directe via GPIO pour avoir la même vitesse que l'ouverture
+        this.log.debug('Sending direct close signal via GPIO');
+        this.setGpio(this.config.gpioPinOpen, this.pinHigh);
+        setTimeout(() => {
+          this.setGpio(this.config.gpioPinOpen, !this.pinHigh);
+        }, this.config.emitTime);
+        
+        // Mettre à jour l'état HomeKit après un court délai
+        setTimeout(() => {
+          this.currentDoorState = this.api.hap.Characteristic.CurrentDoorState.CLOSED;
+          this.targetDoorState = this.api.hap.Characteristic.TargetDoorState.CLOSED;
+          this.garageDoorService.updateCharacteristic(this.api.hap.Characteristic.CurrentDoorState, this.currentDoorState);
+          this.garageDoorService.updateCharacteristic(this.api.hap.Characteristic.TargetDoorState, this.targetDoorState);
+          this.persistCache();
+        }, this.config.executionTime * 1000);
       }, totalVirtualTime);
 
       // Intervalle pour envoyer périodiquement le signal d'ouverture
