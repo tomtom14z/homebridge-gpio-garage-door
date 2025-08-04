@@ -31,6 +31,8 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
   private garageDoorMovingTimeout?: ReturnType<typeof setTimeout>;
   private autoCloseTimeout?: ReturnType<typeof setTimeout>;
   private openingDelayTimeout?: ReturnType<typeof setTimeout>;
+  private virtualOpeningTimer?: ReturnType<typeof setTimeout>;
+  private virtualOpeningInterval?: ReturnType<typeof setInterval>;
 
   private pinHigh = true;
 
@@ -149,7 +151,8 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
     await GPIO.promise.setup(this.config.gpioPinOpen, GPIO.DIR_OUT, GPIO.EDGE_BOTH);
     GPIO.write(this.config.gpioPinOpen, !this.pinHigh);
 
-    if (this.config.gpioPinOpen !== this.config.gpioPinClose) {
+    // En mode auto-close, on n'utilise que le pin d'ouverture
+    if (!this.config.autoCloseEnabled && this.config.gpioPinOpen !== this.config.gpioPinClose) {
       await GPIO.promise.setup(this.config.gpioPinClose, GPIO.DIR_OUT, GPIO.EDGE_BOTH);
       GPIO.write(this.config.gpioPinClose, !this.pinHigh);
     }
@@ -238,6 +241,7 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
         targetGpioPin = this.config.gpioPinOpen;
         // On réinitialise la minuterie d'auto-fermeture
         this.cancelAutoCloseTimer();
+        this.cancelVirtualOpeningTimer();
         this.openingDelayTimeout = setTimeout(() => {
           this.currentDoorState = this.api.hap.Characteristic.CurrentDoorState.OPEN;
           this.garageDoorService.updateCharacteristic(this.api.hap.Characteristic.CurrentDoorState, this.currentDoorState);
@@ -252,7 +256,8 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
         this.currentDoorState = this.api.hap.Characteristic.CurrentDoorState.CLOSING;
         this.garageDoorService.updateCharacteristic(this.api.hap.Characteristic.CurrentDoorState, this.currentDoorState);
         targetGpioPin = this.config.gpioPinOpen; // On utilise le même pin pour fermer
-        // NE PAS annuler la minuterie d'auto-fermeture ici
+        // Annuler les timers de temporisation virtuelle
+        this.cancelVirtualOpeningTimer();
         break;
     }
 
@@ -298,6 +303,9 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
       this.log.info('Auto-close timer expired, closing garage door');
       this.setTargetDoorState(this.api.hap.Characteristic.TargetDoorState.CLOSED);
     }, delay);
+
+    // Démarrer aussi la temporisation virtuelle si configurée
+    this.startVirtualOpeningTimer();
   }
 
   private cancelAutoCloseTimer(): void {
@@ -305,6 +313,52 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
       clearTimeout(this.autoCloseTimeout);
       this.autoCloseTimeout = undefined;
       this.log.debug('Auto-close timer cancelled');
+    }
+  }
+
+  private startVirtualOpeningTimer(): void {
+    this.cancelVirtualOpeningTimer();
+
+    const virtualDelay = this.config.virtualOpeningDelay || 0;
+    const physicalDelay = this.config.autoCloseDelay || 15;
+
+    if (virtualDelay > 0 && virtualDelay > physicalDelay) {
+      const totalVirtualTime = virtualDelay * 1000;
+      const intervalTime = 10 * 1000; // 10 secondes entre chaque signal
+
+      this.log.debug(`Starting virtual opening timer for ${virtualDelay}s (${totalVirtualTime}ms)`);
+
+      // Timer principal pour arrêter la temporisation virtuelle
+      this.virtualOpeningTimer = setTimeout(() => {
+        this.log.info('Virtual opening timer expired, stopping periodic open signals');
+        this.cancelVirtualOpeningInterval();
+      }, totalVirtualTime);
+
+      // Intervalle pour envoyer périodiquement le signal d'ouverture
+      this.virtualOpeningInterval = setInterval(() => {
+        this.log.debug('Sending periodic open signal to maintain door open');
+        this.setGpio(this.config.gpioPinOpen, this.pinHigh);
+        setTimeout(() => {
+          this.setGpio(this.config.gpioPinOpen, !this.pinHigh);
+        }, this.config.emitTime);
+      }, intervalTime);
+    }
+  }
+
+  private cancelVirtualOpeningTimer(): void {
+    if (this.virtualOpeningTimer) {
+      clearTimeout(this.virtualOpeningTimer);
+      this.virtualOpeningTimer = undefined;
+      this.log.debug('Virtual opening timer cancelled');
+    }
+    this.cancelVirtualOpeningInterval();
+  }
+
+  private cancelVirtualOpeningInterval(): void {
+    if (this.virtualOpeningInterval) {
+      clearInterval(this.virtualOpeningInterval);
+      this.virtualOpeningInterval = undefined;
+      this.log.debug('Virtual opening interval cancelled');
     }
   }
 
@@ -336,8 +390,9 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
         this.startAutoCloseTimer();
       }
     } else if (hkDoorState === this.api.hap.Characteristic.CurrentDoorState.CLOSED) {
-      // Door is now closed, cancel auto-close timer
+      // Door is now closed, cancel auto-close timer and virtual opening timer
       this.cancelAutoCloseTimer();
+      this.cancelVirtualOpeningTimer();
     }
   }
 

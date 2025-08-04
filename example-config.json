@@ -1,0 +1,24 @@
+{
+  "bridge": {
+    "name": "Homebridge GPIO Garage Door",
+    "username": "CC:22:3D:E3:CE:30",
+    "port": 51826,
+    "pin": "031-45-154"
+  },
+  "accessories": [
+    {
+      "accessory": "GpioGarageDoor",
+      "name": "Porte de Garage Principale",
+      "gpioPinOpen": 7,
+      "emitTime": 500,
+      "executionTime": 10,
+      "openingDelay": 10,
+      "autoCloseEnabled": true,
+      "autoCloseDelay": 15,
+      "virtualOpeningDelay": 50,
+      "allowCommandOverride": false,
+      "reverseOutput": false
+    }
+  ],
+  "platforms": []
+} 

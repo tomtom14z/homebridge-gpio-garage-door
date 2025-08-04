@@ -12,16 +12,16 @@
 
 # Homebridge GPIO Garage Door with Auto-Close
 
-Un plugin Homebridge pour contrôler une porte de garage via GPIO avec fonctionnalité de fermeture automatique.
+Plugin Homebridge pour contrôler une porte de garage via GPIO avec fermeture automatique et temporisation virtuelle.
 
 ## Fonctionnalités
 
-- **Contrôle GPIO** : Utilise un seul pin GPIO pour ouvrir/fermer la porte
-- **Fermeture automatique** : Fermeture automatique après un délai configurable
-- **Réinitialisation de minuterie** : Chaque impulsion d'ouverture réinitialise la minuterie si la porte est déjà ouverte
-- **Support HomeKit** : Intégration complète avec l'écosystème Apple Home
-- **Webhook** : Support optionnel pour les webhooks
-- **Entrée GPIO** : Lecture optionnelle de l'état de la porte via GPIO
+- Contrôle d'une porte de garage via GPIO
+- Fermeture automatique configurable
+- **Nouveau : Temporisation virtuelle d'ouverture** - maintient la porte ouverte en envoyant périodiquement des signaux d'ouverture
+- Support des webhooks pour l'intégration externe
+- Entrée GPIO pour détecter l'état de la porte
+- Persistance de l'état entre les redémarrages
 
 ## Installation
 
@@ -31,7 +31,25 @@ npm install -g @tomtom14z/homebridge-gpio-garage-door
 
 ## Configuration
 
-Ajoutez la configuration suivante à votre `config.json` de Homebridge :
+### Configuration de base
+
+```json
+{
+  "accessories": [
+    {
+      "accessory": "GpioGarageDoor",
+      "name": "Porte de Garage",
+      "gpioPinOpen": 7,
+      "gpioPinClose": 7,
+      "emitTime": 500,
+      "executionTime": 10,
+      "openingDelay": 10
+    }
+  ]
+}
+```
+
+### Configuration avec fermeture automatique
 
 ```json
 {
@@ -42,73 +60,105 @@ Ajoutez la configuration suivante à votre `config.json` de Homebridge :
       "gpioPinOpen": 7,
       "emitTime": 500,
       "executionTime": 10,
+      "openingDelay": 10,
       "autoCloseEnabled": true,
       "autoCloseDelay": 15,
-      "openingDelay": 10,
-      "allowCommandOverride": false,
-      "reverseOutput": false
+      "virtualOpeningDelay": 50
     }
   ]
 }
 ```
 
-## Paramètres de configuration
+## Paramètres
 
-| Paramètre | Type | Requis | Défaut | Description |
-|-----------|------|--------|--------|-------------|
-| `name` | string | ✅ | - | Nom de l'accessoire dans HomeKit |
-| `gpioPinOpen` | number | ✅ | - | Pin GPIO pour l'impulsion d'ouverture/fermeture |
-| `emitTime` | number | ✅ | 500 | Durée de l'impulsion en millisecondes |
-| `executionTime` | number | ❌ | 10 | Temps d'exécution de la porte en secondes |
-| `autoCloseEnabled` | boolean | ❌ | false | Active la fermeture automatique |
-| `autoCloseDelay` | number | ❌ | 15 | Délai avant fermeture automatique (secondes) |
-| `openingDelay` | number | ❌ | 10 | Délai d'ouverture de la porte (secondes) |
-| `allowCommandOverride` | boolean | ❌ | false | Permet d'ignorer les commandes pendant le mouvement |
-| `reverseOutput` | boolean | ❌ | false | Inverse la logique de sortie GPIO |
+### Paramètres obligatoires
 
-### Paramètres optionnels avancés
+- `name` : Nom de l'accessoire dans HomeKit
+- `gpioPinOpen` : Pin GPIO pour le signal d'ouverture
 
-| Paramètre | Type | Défaut | Description |
-|-----------|------|--------|-------------|
-| `gpioStateInputEnabled` | boolean | false | Active la lecture de l'état via GPIO |
-| `gpioPinState` | number | - | Pin GPIO pour lire l'état de la porte |
-| `gpioStateInputReverse` | boolean | false | Inverse la logique de lecture d'état |
-| `webhookEnabled` | boolean | false | Active le support webhook |
-| `webhookPort` | number | 8352 | Port du webhook |
-| `webhookPath` | string | "/garage-door" | Chemin du webhook |
-| `webhookJsonPath` | string | "$.value" | Chemin JSON pour l'état |
-| `webhookJsonValueReverse` | boolean | false | Inverse la valeur JSON |
+### Paramètres optionnels
 
-## Fonctionnement
+- `gpioPinClose` : Pin GPIO pour le signal de fermeture (masqué si `autoCloseEnabled` est activé)
+- `emitTime` : Durée en millisecondes du signal GPIO (défaut: 500)
+- `executionTime` : Temps d'exécution de la porte en secondes (défaut: 10)
+- `openingDelay` : Délai avant de considérer la porte comme ouverte en secondes (défaut: 10)
 
-### Fermeture automatique
+### Paramètres de fermeture automatique
 
-1. **Ouverture** : Une impulsion sur le pin GPIO ouvre la porte
-2. **Minuterie** : Si activée, une minuterie se déclenche après l'ouverture
-3. **Réinitialisation** : Chaque nouvelle impulsion d'ouverture réinitialise la minuterie
-4. **Fermeture** : Après le délai configuré, la porte se ferme automatiquement
+- `autoCloseEnabled` : Active la fermeture automatique (défaut: false)
+- `autoCloseDelay` : Délai avant fermeture automatique en secondes (défaut: 15, min: 1, max: 300)
+- `virtualOpeningDelay` : **Nouveau** - Temporisation virtuelle d'ouverture en secondes (défaut: 0, min: 0, max: 600)
 
-### Logique de contrôle
+### Paramètres avancés
 
-- **Porte fermée + impulsion** → Ouverture + démarrage minuterie
-- **Porte ouverte + impulsion** → Réinitialisation minuterie
-- **Minuterie expirée** → Fermeture automatique
+- `allowCommandOverride` : Permet d'envoyer une nouvelle commande pendant l'exécution (défaut: false)
+- `reverseOutput` : Inverse la logique du signal GPIO (défaut: false)
+- `gpioStateInputEnabled` : Active la lecture de l'état via GPIO (défaut: false)
+- `gpioPinState` : Pin GPIO pour lire l'état de la porte
+- `gpioStateInputReverse` : Inverse la logique de lecture d'état (défaut: false)
 
-## Utilisation avec HomeKit
+### Paramètres webhook
 
-Une fois configuré, l'accessoire apparaîtra dans l'app Maison d'Apple avec les fonctionnalités suivantes :
+- `webhookEnabled` : Active le serveur webhook (défaut: false)
+- `webhookPort` : Port du serveur webhook (défaut: 8352)
+- `webhookPath` : Chemin du webhook (défaut: "/garage-door")
+- `webhookJsonPath` : Chemin JSON pour extraire l'état (défaut: "$.value")
+- `webhookJsonValueReverse` : Inverse la valeur JSON (défaut: false)
 
-- **Ouverture/fermeture** : Contrôle manuel de la porte
-- **État** : Affichage de l'état actuel (ouvert/fermé/ouverture/fermeture)
-- **Automatisation** : Possibilité de créer des automatisations basées sur l'état
+## Fonctionnalité de temporisation virtuelle
 
-## Développement
+La **temporisation virtuelle d'ouverture** est une fonctionnalité avancée qui permet de maintenir la porte ouverte plus longtemps que la temporisation physique de la porte.
 
-### Installation des dépendances
+### Comment ça fonctionne
+
+1. **Temporisation physique** : La porte se ferme automatiquement après `autoCloseDelay` secondes (ex: 15 secondes)
+2. **Temporisation virtuelle** : Si `virtualOpeningDelay` est supérieur à `autoCloseDelay`, le plugin maintient la porte ouverte en envoyant périodiquement des signaux d'ouverture
+3. **Signaux périodiques** : Toutes les 10 secondes, un signal d'ouverture est envoyé pour réinitialiser la temporisation physique
+4. **Arrêt automatique** : La temporisation virtuelle s'arrête après `virtualOpeningDelay` secondes
+
+### Exemple d'utilisation
+
+```json
+{
+  "autoCloseEnabled": true,
+  "autoCloseDelay": 15,        // La porte se ferme physiquement après 15s
+  "virtualOpeningDelay": 50    // Le plugin maintient la porte ouverte 50s
+}
+```
+
+Dans cet exemple :
+- La porte s'ouvre
+- Après 10 secondes, elle est considérée comme ouverte
+- Après 15 secondes, elle se fermerait physiquement
+- Mais le plugin envoie un signal d'ouverture toutes les 10 secondes pour la maintenir ouverte
+- Après 50 secondes, le plugin arrête d'envoyer des signaux et la porte se ferme
+
+### Cas d'usage
+
+Cette fonctionnalité est particulièrement utile pour :
+- Les portes de garage avec temporisation physique courte
+- Les situations où vous voulez garder la porte ouverte plus longtemps
+- L'intégration avec des systèmes de sécurité ou de surveillance
+- Les environnements où la porte doit rester ouverte pour des opérations prolongées
+
+## Utilisation
+
+### Via HomeKit
+
+1. Ajoutez l'accessoire à Homebridge
+2. La porte apparaîtra dans l'app Maison d'Apple
+3. Utilisez l'app pour ouvrir/fermer la porte
+4. La fermeture automatique se déclenchera selon la configuration
+
+### Via webhook (si activé)
 
 ```bash
-npm install
+curl -X POST http://localhost:8352/garage-door \
+  -H "Content-Type: application/json" \
+  -d '{"value": true}'
 ```
+
+## Développement
 
 ### Compilation
 
@@ -122,13 +172,15 @@ npm run build
 npm run watch
 ```
 
+### Linting
+
+```bash
+npm run lint
+```
+
 ## Licence
 
 Apache-2.0
-
-## Auteur
-
-tomtom14z - [GitHub](https://github.com/tomtom14z)
 
 ## Support
 

@@ -24,7 +24,10 @@
         "description": "The GPIO pin the plugin should use to close the garage door. This can be the same as the pin for opening.",
         "type": "integer",
         "required": true,
-        "placeholder": "e.g. 7 for GPIO 4"
+        "placeholder": "e.g. 7 for GPIO 4",
+        "condition": {
+          "functionBody": "return model.autoCloseEnabled !== true;"
+        }
       },
       "emitTime": {
         "title": "Emit time",
@@ -52,6 +55,17 @@
         "default": 15,
         "minimum": 1,
         "maximum": 300,
+        "condition": {
+          "functionBody": "return model.autoCloseEnabled === true;"
+        }
+      },
+      "virtualOpeningDelay": {
+        "title": "Virtual opening delay (seconds)",
+        "description": "If set higher than the physical auto-close delay, the door will be kept open by sending periodic open signals. Set to 0 to disable.",
+        "type": "number",
+        "default": 0,
+        "minimum": 0,
+        "maximum": 600,
         "condition": {
           "functionBody": "return model.autoCloseEnabled === true;"
         }
