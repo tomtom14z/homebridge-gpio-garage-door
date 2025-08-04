@@ -324,7 +324,13 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
   }
 
   private startVirtualOpeningTimer(): void {
-    this.cancelVirtualOpeningTimer();
+    // Annuler les timers existants sans redémarrer le timer de fermeture automatique
+    if (this.virtualOpeningTimer) {
+      clearTimeout(this.virtualOpeningTimer);
+      this.virtualOpeningTimer = undefined;
+      this.log.debug('Previous virtual opening timer cancelled');
+    }
+    this.cancelVirtualOpeningInterval();
 
     const virtualDelay = this.config.virtualOpeningDelay || 0;
     const physicalDelay = this.config.autoCloseDelay || 15;
@@ -361,8 +367,11 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
     }
     this.cancelVirtualOpeningInterval();
 
-    // Si on annule la temporisation virtuelle, on peut redémarrer le timer de fermeture automatique normal
-    if (this.config.autoCloseEnabled && this.currentDoorState === this.api.hap.Characteristic.CurrentDoorState.OPEN) {
+    // Ne redémarrer le timer de fermeture automatique que si on annule manuellement la temporisation virtuelle
+    // et que la porte est toujours ouverte
+    if (this.config.autoCloseEnabled && 
+        this.currentDoorState === this.api.hap.Characteristic.CurrentDoorState.OPEN &&
+        !this.virtualOpeningTimer) { // Seulement si on n'a pas de timer virtuel actif
       const physicalDelay = (this.config.autoCloseDelay || 15) * 1000;
       this.log.debug(`Restarting normal auto-close timer for ${this.config.autoCloseDelay || 15}s`);
 
