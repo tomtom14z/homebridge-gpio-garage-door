@@ -360,12 +360,12 @@ export class GpioGarageDoorAccessory implements AccessoryPlugin {
       this.log.debug('Virtual opening timer cancelled');
     }
     this.cancelVirtualOpeningInterval();
-    
+
     // Si on annule la temporisation virtuelle, on peut redémarrer le timer de fermeture automatique normal
     if (this.config.autoCloseEnabled && this.currentDoorState === this.api.hap.Characteristic.CurrentDoorState.OPEN) {
       const physicalDelay = (this.config.autoCloseDelay || 15) * 1000;
       this.log.debug(`Restarting normal auto-close timer for ${this.config.autoCloseDelay || 15}s`);
-      
+
       this.autoCloseTimeout = setTimeout(() => {
         this.log.info('Auto-close timer expired, closing garage door');
         this.setTargetDoorState(this.api.hap.Characteristic.TargetDoorState.CLOSED);
